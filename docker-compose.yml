@@ -1,0 +1,66 @@
+version: '3.7'
+services:
+
+  redis:
+    image: redis
+    restart: always
+
+  db:
+    image: mariadb
+    #command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      - "MARIADB_ROOT_PASSWORD=password"
+      - "MARIADB_USER=misp"
+      - "MARIADB_PASSWORD=example"
+      - "MARIADB_DATABASE=misp"
+    volumes:
+      # Table data
+      - mysql_data:/var/lib/mysql
+      # DB config overrides
+      #- /my/custom:/etc/mysql/conf.d
+    cap_add:
+      # CAP_SYS_NICE Prevent runaway mariadb log
+      - SYS_NICE
+
+  ad:
+    image: hildenae/sambadocker:latest
+    build: sambadocker/
+    hostname: ldap.server.dev
+    container_name: ldap
+    environment:
+      - SMB_ADMIN_PASSWORD=dette_ER_et%LANGTordSOMkanskjeERnok
+    volumes:
+       - 'samdad_data:/var/lib/samba'
+    ports:
+       - "127.0.0.2:1636:636"
+  misp:
+    image: hildenae/misp-auto:latest
+    build: misp-auto/
+    depends_on:
+      - redis
+      - db
+      - ad
+    ports:
+      - "127.0.0.2:10080:80"
+      - "127.0.0.2:10443:443"
+    volumes:
+      - "var_www:/var/www"
+      - "apache_config:/etc/apache2"
+    environment:
+      - "HOSTNAME=https://localhost"
+      - "REDIS_HOST=redis"
+      - "DB_HOST=db"
+      - "DB_USER=misp"
+      # NOTE: Password should be AlphaNum with no Special Chars.
+      # Otherwise, edit config files after first run.
+      - "DB_PASSWORD=example"
+      - "DB_DATABASE_NAME=misp"
+      - "INIT_ADMIN_EMAIL=admin@misp.com"
+      - "INIT_ADMIN_PASSWORD=ComplexAdminPassword!"
+
+volumes:
+    mysql_data:
+    var_www:
+    apache_config:
+    samdad_data:
